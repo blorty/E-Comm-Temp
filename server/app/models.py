@@ -22,19 +22,8 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     
     # Relationships
-    user_orders = db.relationship('Order', back_populates='user')
+    user_orders = db.relationship('Order', back_populates='user', lazy='dynamic')
     user_cart = db.relationship('Cart', back_populates='user', uselist=False, lazy='joined')
-    addressess = db.relationship('Address', backref='user', lazy=True)
-
-    def __init__(self, **kwargs):
-        super(User, self).__init__(**kwargs)
-        self.create_cart()
-
-    def create_cart(self):
-        if self.user_cart is None:
-            cart = Cart(user_id=self.id)
-            db.session.add(cart)
-            db.session.commit()
 
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -122,12 +111,12 @@ class Product(db.Model):
     # Product - OrderItem (one to many) product can be in many orders
     # Product - CartItem (one to many) product can be in many carts
     product_orders = db.relationship('OrderItem', backref='product', lazy=True)
-    product_carts = db.relationship('CartItem', backref='product', lazy=True)
+    product_carts = db.relationship('CartItem', back_populates='parent_product', lazy=True)
     
 class Order(db.Model):
     __tablename__ = 'orders'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     status = db.Column(db.String(128), nullable=False)
     total = db.Column(db.Float, nullable=False)
     date_created = db.Column(db.DateTime, nullable=False)
@@ -136,13 +125,13 @@ class Order(db.Model):
     # User - Order (one to many) a user can have many orders
     # Order - OrderItem (one to many) an order can have many order items
     user = db.relationship('User', back_populates='user_orders')
-    order_items = db.relationship('OrderItem', back_populates='order')
+    order_items = db.relationship('OrderItem', back_populates='order', lazy='dynamic')
     
 class OrderItem(db.Model):
     __tablename__ = 'order_items'
     id = db.Column(db.Integer, primary_key=True)
-    order_id = db.Column(db.Integer, nullable=False)
-    product_id = db.Column(db.Integer, nullable=False)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False) 
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     
@@ -171,7 +160,7 @@ class CartItem(db.Model):
     price = db.Column(db.Float, nullable=False)
 
     cart = db.relationship('Cart', back_populates='cart_items')
-    product = db.relationship('Product', backref='cart_items')
+    parent_product = db.relationship('Product', back_populates='product_carts')
 
     def update_price(self):
         self.price = self.product.price  # Assuming price field exists in Product model
