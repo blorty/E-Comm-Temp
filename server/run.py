@@ -1,11 +1,6 @@
-from dotenv import load_dotenv
-load_dotenv()
+# run.py
 
-from app import app, db
-
-import os
-
-db_encryption_key = os.environ.get('DB_ENCRYPTION_KEY')
+from app import app
 
 if __name__ == '__main__':
     app.run(debug=True)

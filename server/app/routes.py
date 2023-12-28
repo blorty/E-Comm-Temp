@@ -1,91 +1,69 @@
-from flask import Flask
-from flask_restful import Api, Resource, reqparse
-from .services.user_service import UserService
-from .services.order_service import OrderService
-from .services.product_service import ProductService
+# app/routes.py
 
-app = Flask(__name__)
-api = Api(app)
+from flask_restful import Resource, reqparse
+from flask_jwt_extended import jwt_required, get_jwt,create_access_token, create_refresh_token
 
-class UserRegister(Resource):
+
+from .models import User
+from . import db, bcrypt, jwt
+from .blocklist import BLOCKLIST
+
+ACTIVE_TOKENS = {}
+
+class UserRegistration(Resource):
     def post(self):
         parser = reqparse.RequestParser()
-        parser.add_argument('username', required=True, help="Username cannot be blank.")
-        parser.add_argument('email', required=True, help="Email cannot be blank.")
-        parser.add_argument('password', required=True, help="Password cannot be blank.")
-        data = parser.parse_args()
+        parser.add_argument('username', required=True, help="Username cannot be blank")
+        parser.add_argument('email', required=True, help="Email cannot be blank")
+        parser.add_argument('password', required=True, help="Password cannot be blank")
+        args = parser.parse_args()
 
-        try:
-            user = UserService.create_user(data['username'], data['email'], data['password'])
-            return {"message": "User created successfully", "user": user.serialize()}, 201
-        except Exception as e:
-            return {"error": str(e)}, 400
+        if User.query.filter_by(username=args['username']).first():
+            return {'message': 'Username already exists'}, 400
+
+        if User.query.filter_by(email=args['email']).first():
+            return {'message': 'Email already registered'}, 400
+
+        new_user = User(
+            username=args['username'],
+            email=args['email']
+        )
+        new_user.set_password(args['password'])
+        db.session.add(new_user)
+        db.session.commit()
+
+        return {'message': 'User created successfully'}, 201
+
 
 class UserLogin(Resource):
     def post(self):
         parser = reqparse.RequestParser()
-        parser.add_argument('username', required=True, help="Username cannot be blank.")
-        parser.add_argument('password', required=True, help="Password cannot be blank.")
-        data = parser.parse_args()
+        parser.add_argument('username', required=True, help="Username cannot be blank")
+        parser.add_argument('password', required=True, help="Password cannot be blank")
+        args = parser.parse_args()
 
-        if UserService.verify_user(data['username'], data['password']):
-            return {"message": "Login successful"}, 200
+        user = User.query.filter_by(username=args['username']).first()
+        if user and bcrypt.check_password_hash(user.password_hash, args['password']):
+            access_token = create_access_token(identity=args['username'])
+            refresh_token = create_refresh_token(identity=args['username'])
+            ACTIVE_TOKENS[access_token] = True
+            return {
+                'access_token': access_token,
+                'refresh_token': refresh_token
+            }, 200
         else:
-            return {"error": "Invalid credentials"}, 401
+            return {'message': 'Invalid credentials'}, 401
 
-class OrderList(Resource):
-    def get(self):
-        orders = OrderService.get_all_orders()
-        return [order.serialize() for order in orders], 200
 
+class UserLogout(Resource):
+    @jwt_required()
     def post(self):
-        parser = reqparse.RequestParser()
-        parser.add_argument('user_id', required=True, help="User ID cannot be blank.")
-        parser.add_argument('product_id', required=True, help="Product ID cannot be blank.")
-        parser.add_argument('quantity', type=int, required=True, help="Quantity cannot be blank.")
-        data = parser.parse_args()
+        jti = get_jwt()['jti']
+        BLOCKLIST.add(jti)
+        return {'message': 'Successfully logged out'}, 200
 
-        OrderService.create_order(data['user_id'], data['product_id'], data['quantity'])
-        return {"message": "Order created successfully"}, 201
-
-class OrderResource(Resource):
-    def get(self, id):
-        order = OrderService.get_order_by_id(id)
-        if order:
-            return order.serialize(), 200
-        return {"message": "Order not found"}, 404
-
-    # Add PUT and DELETE methods as needed
-
-class ProductList(Resource):
-    def get(self):
-        products = ProductService.get_all_products()
-        return [product.serialize() for product in products], 200
-
-    def post(self):
-        parser = reqparse.RequestParser()
-        parser.add_argument('name', required=True, help="Name cannot be blank.")
-        # ... other arguments ...
-        data = parser.parse_args()
-
-        ProductService.create_product(data['name'], data['price'], data['stock'], data['category'])
-        return {"message": "Product created successfully"}, 201
-
-class ProductResource(Resource):
-    def get(self, id):
-        product = ProductService.get_product_by_id(id)
-        if product:
-            return product.serialize(), 200
-        return {"message": "Product not found"}, 404
-
-    # Add PUT and DELETE methods as needed
-
-api.add_resource(UserRegister, '/register')
-api.add_resource(UserLogin, '/login')
-api.add_resource(OrderList, '/orders')
-api.add_resource(OrderResource, '/orders/<int:id>')
-api.add_resource(ProductList, '/products')
-api.add_resource(ProductResource, '/products/<int:id>')
-
-if __name__ == '__main__':
-    app.run(debug=True)
+# Add the login and logout routes
+def init_routes(api):
+    api.add_resource(UserRegistration, '/register')
+    api.add_resource(UserLogin, '/login')
+    api.add_resource(UserLogout, '/logout')
