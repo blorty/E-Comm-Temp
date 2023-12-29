@@ -1,13 +1,22 @@
-from app.models import User, db
+from app.models import User, Cart, db
 from app import bcrypt
 
 class UserService:
     @staticmethod
     def create_user(username, email, password):
-        new_user = User(username=username, email=email)
-        new_user.set_password(password)  # Hash the password
-        db.session.add(new_user)
-        db.session.commit()
+        try:
+            new_user = User(username=username, email=email)
+            new_user.set_password(password)  # Hash the password
+            db.session.add(new_user)
+            db.session.flush()  # Flush the session to get the new user ID
+            
+            new_cart = Cart(user_id=new_user.id)  # Create a new cart for the user
+            db.session.add(new_cart)
+            db.session.commit()
+            return new_user
+        except Exception as e:
+            db.session.rollback()
+            raise e
 
     @staticmethod
     def verify_user(username, password):

@@ -23,7 +23,7 @@ app = Flask(__name__, instance_relative_config=True)
 
 # JWT Configuration
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=30)
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=2)
 jwt = JWTManager(app)
 
 @jwt.token_in_blocklist_loader

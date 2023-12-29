@@ -1,3 +1,5 @@
+#models.py
+
 import os
 from cryptography.fernet import Fernet
 from . import db, bcrypt
@@ -21,7 +23,6 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(128), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     
-    # Relationships
     user_orders = db.relationship('Order', back_populates='user', lazy='dynamic')
     user_cart = db.relationship('Cart', back_populates='user', uselist=False, lazy='joined')
 
@@ -107,12 +108,21 @@ class Product(db.Model):
     stock = db.Column(db.Integer, nullable=False)
     category = db.Column(db.String(128), nullable=False)
     
-    # Relationships
-    # Product - OrderItem (one to many) product can be in many orders
-    # Product - CartItem (one to many) product can be in many carts
-    product_orders = db.relationship('OrderItem', backref='product', lazy=True)
-    product_carts = db.relationship('CartItem', back_populates='parent_product', lazy=True)
-    
+    cart_items = db.relationship('CartItem', back_populates='product', lazy=True)
+    order_items = db.relationship('OrderItem', back_populates='product', lazy=True)
+
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'price': self.price,
+            'description': self.description,
+            'image': self.image,
+            'stock': self.stock,
+            'category': self.category
+        }
+
 class Order(db.Model):
     __tablename__ = 'orders'
     id = db.Column(db.Integer, primary_key=True)
@@ -121,25 +131,39 @@ class Order(db.Model):
     total = db.Column(db.Float, nullable=False)
     date_created = db.Column(db.DateTime, nullable=False)
     
-    # Relationships
-    # User - Order (one to many) a user can have many orders
-    # Order - OrderItem (one to many) an order can have many order items
     user = db.relationship('User', back_populates='user_orders')
     order_items = db.relationship('OrderItem', back_populates='order', lazy='dynamic')
-    
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'status': self.status,
+            'total': self.total,
+            'date_created': self.date_created.strftime('%Y-%m-%d %H:%M:%S') if self.date_created else None
+        }
+
 class OrderItem(db.Model):
     __tablename__ = 'order_items'
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
-    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False) 
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     
-    # Relationships
-    # User - Order (one to many) a user can have many orders
-    # Order - OrderItem (one to many) an order can have many order items
+    product = db.relationship('Product', back_populates='order_items')
     order = db.relationship('Order', back_populates='order_items')
-    
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'product_id': self.product_id,
+            'quantity': self.quantity,
+            'price': self.price,
+            'date_created': self.date_created.strftime('%Y-%m-%d %H:%M:%S') if self.date_created else None
+        }
+
 class Cart(db.Model):
     __tablename__ = 'carts'
     id = db.Column(db.Integer, primary_key=True)
@@ -151,6 +175,13 @@ class Cart(db.Model):
     def calculate_total(self):
         return sum(item.quantity * item.price for item in self.cart_items)
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'total': self.calculate_total()
+        }
+
 class CartItem(db.Model):
     __tablename__ = 'cart_items'
     id = db.Column(db.Integer, primary_key=True)
@@ -160,7 +191,16 @@ class CartItem(db.Model):
     price = db.Column(db.Float, nullable=False)
 
     cart = db.relationship('Cart', back_populates='cart_items')
-    parent_product = db.relationship('Product', back_populates='product_carts')
+    product = db.relationship('Product', back_populates='cart_items')
 
     def update_price(self):
-        self.price = self.product.price  # Assuming price field exists in Product model
+        self.price = self.product.price 
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'cart_id': self.cart_id,
+            'product_id': self.product_id,
+            'quantity': self.quantity,
+            'price': self.price
+        }
