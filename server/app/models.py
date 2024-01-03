@@ -18,7 +18,6 @@ def decrypt_data(data, key):
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(128), unique=True, nullable=False)
     email = db.Column(db.String(128), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
@@ -33,7 +32,7 @@ class User(db.Model, UserMixin):
         return bcrypt.check_password_hash(self.password_hash, password)
 
     def __repr__(self):
-        return f'<User {self.username}>'
+        return f'<User {self.email}>'
 
 class Address(db.Model):
     __tablename__ = 'addresses'

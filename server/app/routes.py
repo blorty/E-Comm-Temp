@@ -18,20 +18,16 @@ ACTIVE_TOKENS = {}
 class UserRegistration(Resource):
     def post(self):
         parser = reqparse.RequestParser()
-        parser.add_argument('username', required=True, help="Username cannot be blank")
         parser.add_argument('email', required=True, help="Email cannot be blank")
         parser.add_argument('password', required=True, help="Password cannot be blank")
         args = parser.parse_args()
-
-        if User.query.filter_by(username=args['username']).first():
-            return {'message': 'Username already exists'}, 400
 
         if User.query.filter_by(email=args['email']).first():
             return {'message': 'Email already registered'}, 400
 
         try:
             # Use the UserService to create a new user and associated cart
-            UserService.create_user(args['username'], args['email'], args['password'])
+            UserService.create_user(args['email'], args['password'])
             return {'message': 'User created successfully'}, 201
         except Exception as e:
             # Handle the exception if user creation failed
@@ -41,14 +37,14 @@ class UserRegistration(Resource):
 class UserLogin(Resource):
     def post(self):
         parser = reqparse.RequestParser()
-        parser.add_argument('username', required=True, help="Username cannot be blank")
+        parser.add_argument('email', required=True, help="Email cannot be blank")
         parser.add_argument('password', required=True, help="Password cannot be blank")
         args = parser.parse_args()
 
-        user = User.query.filter_by(username=args['username']).first()
+        user = User.query.filter_by(email=args['email']).first()
         if user and bcrypt.check_password_hash(user.password_hash, args['password']):
-            access_token = create_access_token(identity=args['username'])
-            refresh_token = create_refresh_token(identity=args['username'])
+            access_token = create_access_token(identity=args['email'])
+            refresh_token = create_refresh_token(identity=args['email'])
             ACTIVE_TOKENS[access_token] = True
             return {
                 'access_token': access_token,
@@ -64,6 +60,19 @@ class UserLogout(Resource):
         jti = get_jwt()['jti']
         BLOCKLIST.add(jti)
         return {'message': 'Successfully logged out'}, 200
+
+
+class EmailVerification(Resource):
+    def post(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('email', required=True, help="Email cannot be blank")
+        args = parser.parse_args()
+
+        user = User.query.filter_by(email=args['email']).first()
+        if user:
+            return {'exists': True}, 200
+        else:
+            return {'exists': False}, 200
 # ----------------- USERS ----------------- #
 
 
@@ -205,6 +214,7 @@ def init_routes(api):
     api.add_resource(UserRegistration, '/register')
     api.add_resource(UserLogin, '/login')
     api.add_resource(UserLogout, '/logout')
+    api.add_resource(EmailVerification, '/verify-email')
     api.add_resource(ViewCart, '/cart/view')
     api.add_resource(AddToCart, '/cart/add')
     api.add_resource(RemoveItemFromCart, '/cart/remove')

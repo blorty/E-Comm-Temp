@@ -3,9 +3,9 @@ from app import bcrypt
 
 class UserService:
     @staticmethod
-    def create_user(username, email, password):
+    def create_user(email, password):
         try:
-            new_user = User(username=username, email=email)
+            new_user = User(email=email)
             new_user.set_password(password)  # Hash the password
             db.session.add(new_user)
             db.session.flush()  # Flush the session to get the new user ID
@@ -19,8 +19,8 @@ class UserService:
             raise e
 
     @staticmethod
-    def verify_user(username, password):
-        user = User.query.filter_by(username=username).first()
+    def verify_user(email, password):
+        user = User.query.filter_by(email=email).first()
         return user and user.check_password(password)
 
     @staticmethod
@@ -41,8 +41,7 @@ class UserService:
         db.session.commit()
 
     @staticmethod
-    def update_user(user, username, email):
-        user.username = username
+    def update_user(user, email):
         user.email = email
         db.session.commit()
 
